@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Dealership {
+  id               String            @id @default(cuid())
+  legalName        String
+  brand            String
+  city             String
+  rtoCodePrefix    String
+  address          String
+  phone            String
+  gstin            String            @unique
+  upiOrBankAccount String
+  status           String            @default("ACTIVE") // ACTIVE | SUSPENDED
+  rating           Float             @default(4.9)
+  staff            DealershipStaff[]
+  quotes           Quote[]
+  createdAt        DateTime          @default(now())
+}
+
+model DealershipStaff {
+  id              String     @id @default(cuid())
+  dealershipId    String
+  dealership      Dealership @relation(fields: [dealershipId], references: [id])
+  fullName        String
+  email           String     @unique
+  passwordHash    String
+  role            String     // "GM" | "SALES_REP"
+  isActive        Boolean    @default(true)
+  revokedAt       DateTime?
+  quotesSubmitted Quote[]
+  createdAt       DateTime   @default(now())
+}
+
+model VehicleMaster {
+  id                 String         @id @default(cuid())
+  make               String
+  model              String
+  variant            String
+  fuelType           String
+  transmission       String
+  exShowroomPriceInr Int
+  rtoRatePercent     Float
+  tcsApplicable      Boolean
+  quoteRequests      QuoteRequest[]
+}
+
+model QuoteRequest {
+  id                 String        @id @default(cuid())
+  buyerName          String
+  buyerPhone         String        // Masked from dealers until DealLock
+  buyerEmail         String
+  rtoCode            String
+  vehicleMasterId    String
+  vehicle            VehicleMaster @relation(fields: [vehicleMasterId], references: [id])
+  preferredColor     String
+  exchangeCarDetails String?
+  depositAmountInr   Int           @default(1000)
+  depositStatus      String        @default("ESCROW_HELD") // ESCROW_HELD | REFUNDED | SETTLED
+  paymentRefId       String
+  status             String        @default("OPEN") // OPEN | LOCKED | EXPIRED | REFUNDED
+  expiresAt          DateTime
+  quotes             Quote[]
+  dealLock           DealLock?
+  createdAt          DateTime      @default(now())
+}
+
+model Quote {
+  id                     String          @id @default(cuid())
+  quoteRequestId         String
+  quoteRequest           QuoteRequest    @relation(fields: [quoteRequestId], references: [id])
+  dealershipId           String
+  dealership             Dealership      @relation(fields: [dealershipId], references: [id])
+  submittedByStaffId     String
+  submittedByStaff       DealershipStaff @relation(fields: [submittedByStaffId], references: [id])
+  exShowroomInr          Int
+  rtoChargesInr          Int
+  cashDiscountInr        Int             @default(0)
+  exchangeBonusInr       Int             @default(0)
+  insurancePriceInr      Int
+  accessoriesCostInr     Int             @default(0)
+  accessoriesList        String
+  fastagAndMiscInr       Int             @default(600)
+  tcsInr                 Int             @default(0)
+  totalOnRoadPriceInr    Int
+  manufacturingYear      Int
+  guaranteedDeliveryDays Int
+  notes                  String?
+  status                 String          @default("SUBMITTED") // SUBMITTED | BUYER_APPROVED | LOCKED | REJECTED
+  dealLock               DealLock?
+  createdAt              DateTime        @default(now())
+}
+
+model DealLock {
+  id              String       @id @default(cuid())
+  quoteRequestId  String       @unique
+  quoteRequest    QuoteRequest @relation(fields: [quoteRequestId], references: [id])
+  winningQuoteId  String       @unique
+  winningQuote    Quote        @relation(fields: [winningQuoteId], references: [id])
+  buyerApprovedAt DateTime     @default(now())
+  gmApprovedAt    DateTime?
+  validUntil      DateTime
+  payoutAmountInr Int          @default(900)
+  platformFeeInr  Int          @default(100)
+  payoutStatus    String       @default("PENDING") // PENDING | PAID_UPI_NEFT
+  payoutRefId     String?
+  certificateCode String       @unique
+}
